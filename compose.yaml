@@ -1,0 +1,176 @@
+name: media-stack
+
+services:
+  # ---------------------------------------------------------------------------
+  # VPN gateway. Transmission shares this container's network stack, so if the
+  # tunnel drops, Transmission loses all connectivity (kill switch by design).
+  # ---------------------------------------------------------------------------
+  gluetun:
+    image: qmcgaw/gluetun:v3.41.1
+    container_name: gluetun
+    hostname: gluetun
+
+    cap_add:
+      - NET_ADMIN
+
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+
+      # See https://github.com/qdm12/gluetun-wiki for every supported provider.
+      VPN_SERVICE_PROVIDER: ${VPN_SERVICE_PROVIDER:-cyberghost}
+      VPN_TYPE: ${VPN_TYPE:-openvpn}
+
+      # OpenVPN credentials (ignored when VPN_TYPE=wireguard).
+      OPENVPN_USER: ${OPENVPN_USER:-}
+      OPENVPN_PASSWORD: ${OPENVPN_PASSWORD:-}
+      OPENVPN_PROTOCOL: ${OPENVPN_PROTOCOL:-tcp}
+
+      # WireGuard credentials (ignored when VPN_TYPE=openvpn).
+      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY:-}
+      WIREGUARD_ADDRESSES: ${WIREGUARD_ADDRESSES:-}
+
+      SERVER_COUNTRIES: ${SERVER_COUNTRIES:-}
+
+      # Let the host reach the Transmission web UI through this container.
+      FIREWALL_INPUT_PORTS: ${FIREWALL_INPUT_PORTS:-9091}
+
+    volumes:
+      # Providers such as CyberGhost also need client.crt and client.key here.
+      - ./config/gluetun:/gluetun
+
+    ports:
+      # Transmission web UI, published on gluetun because they share a netns.
+      - "${BIND_ADDRESS:-127.0.0.1}:${TRANSMISSION_PORT:-19091}:9091"
+
+    restart: unless-stopped
+
+    networks:
+      media:
+        aliases:
+          # Sonarr and Radarr reach Transmission at http://transmission:9091.
+          - transmission
+
+  transmission:
+    image: lscr.io/linuxserver/transmission:latest
+    container_name: transmission
+
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Etc/UTC}
+      UMASK: "002"
+
+      USER: ${TRANSMISSION_USER:-}
+      PASS: ${TRANSMISSION_PASSWORD:-}
+
+    volumes:
+      - ./config/transmission:/config
+      - ${DOWNLOADS_DIR:?set DOWNLOADS_DIR in .env}:/data
+
+    # All Transmission traffic is routed through the VPN container.
+    network_mode: "service:gluetun"
+
+    depends_on:
+      gluetun:
+        # Wait for the tunnel to be up, not just for the container to start.
+        condition: service_healthy
+
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Etc/UTC}
+      UMASK: "002"
+
+    volumes:
+      - ./config/sonarr:/config
+      - ${DOWNLOADS_DIR:?set DOWNLOADS_DIR in .env}:/data
+
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${SONARR_PORT:-18989}:8989"
+
+    restart: unless-stopped
+
+    networks:
+      - media
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Etc/UTC}
+      UMASK: "002"
+
+    volumes:
+      - ./config/radarr:/config
+      - ${DOWNLOADS_DIR:?set DOWNLOADS_DIR in .env}:/data
+
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${RADARR_PORT:-17878}:7878"
+
+    restart: unless-stopped
+
+    networks:
+      - media
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Etc/UTC}
+      UMASK: "002"
+
+    volumes:
+      - ./config/prowlarr:/config
+
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PROWLARR_PORT:-19696}:9696"
+
+    restart: unless-stopped
+
+    networks:
+      - media
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Etc/UTC}
+      UMASK: "002"
+
+    volumes:
+      - ./config/bazarr:/config
+      - ${DOWNLOADS_DIR:?set DOWNLOADS_DIR in .env}:/data
+
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BAZARR_PORT:-16767}:6767"
+
+    depends_on:
+      - sonarr
+      - radarr
+
+    restart: unless-stopped
+
+    networks:
+      - media
+
+networks:
+  media:
+    name: media-stack

@@ -1,0 +1,22 @@
+# ---------------------------------------------------------------------------
+# Secrets & runtime state — NEVER commit these.
+# ---------------------------------------------------------------------------
+
+# Application state: databases, logs, and API keys (Sonarr/Radarr/Prowlarr
+# config.xml), the Transmission RPC password hash, and the VPN client
+# certificate + private key under config/gluetun/.
+config/
+
+# Local credentials (VPN account, Transmission user/password, host paths).
+.env
+.env.*
+!.env.example
+
+# Editor / OS noise
+*.save
+*.bak
+*.swp
+.DS_Store
+._*
+.idea/
+.vscode/
