@@ -11,8 +11,8 @@ and Linux.
 
 - **Transmission has no route to the Internet except the VPN.** It shares
   gluetun's network namespace (`network_mode: service:gluetun`), so if the
-  tunnel drops, Transmission is offline instead of leaking. This is a kill
-  switch by construction, not a setting that can be forgotten.
+  tunnel drops, Transmission goes offline. The kill switch is structural: it
+  holds even when nothing is configured to enforce it.
 - **Everything is bound to `127.0.0.1` by default.** No web UI is exposed to
   your LAN or the Internet until you deliberately change `BIND_ADDRESS`.
 - **One shared mount, so hardlinks work.** Downloads and the media library live

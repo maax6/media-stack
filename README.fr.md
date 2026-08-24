@@ -11,8 +11,8 @@ identique sur macOS et Linux.
 
 - **Transmission n'a aucune route vers Internet en dehors du VPN.** Il partage
   la pile réseau de gluetun (`network_mode: service:gluetun`) : si le tunnel
-  tombe, Transmission est hors ligne au lieu de fuiter. C'est un kill switch
-  par construction, pas une case à cocher qu'on peut oublier.
+  tombe, Transmission passe hors ligne. Le kill switch est structurel : il
+  tient même sans réglage pour l'imposer.
 - **Tout écoute sur `127.0.0.1` par défaut.** Aucune interface web n'est
   exposée au réseau local ou à Internet tant que tu ne changes pas
   délibérément `BIND_ADDRESS`.

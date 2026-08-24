@@ -75,7 +75,7 @@ services:
 
     depends_on:
       gluetun:
-        # Wait for the tunnel to be up, not just for the container to start.
+        # Gate on gluetun's healthcheck, which reports once the tunnel is up.
         condition: service_healthy
 
     restart: unless-stopped
