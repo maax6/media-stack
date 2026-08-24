@@ -1,9 +1,21 @@
 # media-stack
 
-Une petite stack d'automatisation média auto-hébergée : **Transmission**
-derrière un kill switch VPN, plus **Sonarr**, **Radarr**, **Prowlarr** et
-**Bazarr**. Un seul `docker compose up -d`, aucun secret dans le dépôt,
-identique sur macOS et Linux.
+Une **stack torrent automatisée** auto-hébergée pour Docker Compose : un
+**client BitTorrent routé à travers un kill switch VPN**, avec recherche,
+téléchargement, import et sous-titres automatiques. Un seul
+`docker compose up -d`, aucun secret dans le dépôt, identique sur macOS et
+Linux — portable, serveur homelab, NAS ou VPS.
+
+## Ce que contient la stack
+
+| Service | Rôle |
+| --- | --- |
+| [gluetun](https://github.com/qdm12/gluetun) | Client VPN (OpenVPN ou WireGuard) servant de passerelle réseau et de kill switch |
+| [Transmission](https://transmissionbt.com/) | Client BitTorrent, entièrement à l'intérieur du tunnel VPN |
+| [Prowlarr](https://prowlarr.com/) | Gestionnaire d'indexeurs/trackers, synchronise les indexeurs vers les applications ci-dessous |
+| [Sonarr](https://sonarr.tv/) | Séries TV : surveille, cherche et importe les épisodes |
+| [Radarr](https://radarr.video/) | Films : surveille, cherche et importe les sorties |
+| [Bazarr](https://www.bazarr.media/) | Sous-titres pour tout ce qu'importent Sonarr et Radarr |
 
 🇬🇧 [English version](README.md)
 
@@ -144,6 +156,73 @@ puis `git clone` et `docker compose up -d`. Ajuste `PUID`/`PGID` et
 `DOWNLOADS_DIR` pour le nouvel hôte. Sinon, repars de zéro : la stack recrée
 son `config/` au premier lancement et tu reconfigures les applications à la
 main.
+
+## FAQ
+
+### Le kill switch tient-il vraiment quand le VPN tombe ?
+
+Oui, parce qu'il n'y a rien à exécuter pour qu'il tienne. Transmission n'a
+aucune interface réseau propre : il partage l'espace réseau de gluetun. Quand
+le tunnel disparaît, la seule route de sortie disparaît avec lui. Vérification :
+`docker compose logs gluetun | grep -i "public ip"`.
+
+### Quels fournisseurs VPN fonctionnent ?
+
+Tous ceux que gluetun supporte — une soixantaine, dont NordVPN, Mullvad,
+ProtonVPN, Surfshark, Private Internet Access, CyberGhost, ainsi que n'importe
+quelle configuration OpenVPN ou WireGuard personnalisée. Renseigne
+`VPN_SERVICE_PROVIDER` dans `.env` ; voir la
+[liste des fournisseurs gluetun](https://github.com/qdm12/gluetun-wiki/tree/main/setup/providers).
+
+### Puis-je utiliser WireGuard ?
+
+Oui. Mets `VPN_TYPE=wireguard` et renseigne `WIREGUARD_PRIVATE_KEY` et
+`WIREGUARD_ADDRESSES` dans `.env`. C'est plus rapide qu'OpenVPN sur la plupart
+des machines.
+
+### Puis-je remplacer Transmission par qBittorrent ou Deluge ?
+
+Oui. Remplace l'image du service `transmission` par
+`lscr.io/linuxserver/qbittorrent` ou `lscr.io/linuxserver/deluge`, garde
+`network_mode: "service:gluetun"`, et adapte le port publié ainsi que
+`FIREWALL_INPUT_PORTS` au port de la nouvelle interface web.
+
+### Pourquoi mes imports copient-ils les fichiers au lieu de faire des hardlinks ?
+
+Les liens durs ne fonctionnent qu'à l'intérieur d'un même système de fichiers.
+Les téléchargements et la bibliothèque doivent tous deux vivre sous
+`DOWNLOADS_DIR`, et chaque conteneur doit les voir au même chemin `/data` —
+d'où le montage unique et l'absence de Remote Path Mapping. Active aussi les
+hardlinks dans *Media Management* côté Sonarr et Radarr.
+
+### Ça tourne sur un Raspberry Pi, un NAS Synology ou un VPS ?
+
+Oui. Toutes les images sont multi-architecture (amd64 et arm64). Sous Linux,
+mets `PUID`/`PGID` à `id -u` / `id -g`, généralement `1000/1000`. Il faut que
+`/dev/net/tun` soit disponible, ce qui exclut certains hébergeurs de conteneurs
+restreints.
+
+### Comment accéder aux interfaces web depuis une autre machine ?
+
+Garde `BIND_ADDRESS=127.0.0.1` et reviens dans ton réseau via Tailscale ou
+WireGuard. Exposer ces applications directement est dangereux : elles n'ont
+jamais été conçues pour faire face à Internet.
+
+### Faut-il une redirection de port ?
+
+Uniquement pour accepter des pairs entrants. Cette stack laisse le port pair
+non publié : Transmission est en sortie seule et les ratios d'upload restent
+faibles. Si ton fournisseur supporte la redirection de port, gluetun sait la
+demander — voir son wiki.
+
+## Usage prévu
+
+BitTorrent est un protocole de distribution, et une grande partie de ce qu'il
+distribue est librement partageable : images Linux et BSD (Debian, Ubuntu,
+Arch, Fedora), collections de l'[Internet Archive](https://archive.org/), films
+du domaine public, musique et vidéo sous licence Creative Commons, jeux de
+données ouverts, archives de jeux et de demoscene, films libres de la Blender
+Foundation. C'est exactement ce type de bibliothèque que cette stack automatise.
 
 ## Cadre légal
 

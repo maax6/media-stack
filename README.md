@@ -1,9 +1,20 @@
 # media-stack
 
-A small, self-hosted media automation stack: **Transmission** behind a VPN kill
-switch, plus **Sonarr**, **Radarr**, **Prowlarr** and **Bazarr**. One
-`docker compose up -d`, no secrets in the repository, works the same on macOS
-and Linux.
+A self-hosted **torrent automation stack** for Docker Compose: a **BitTorrent
+client routed through a VPN kill switch**, with automatic search, download,
+import and subtitle fetching. One `docker compose up -d`, no secrets in the
+repository, identical on macOS and Linux — laptop, homelab server, NAS or VPS.
+
+## What's in the stack
+
+| Service | Role |
+| --- | --- |
+| [gluetun](https://github.com/qdm12/gluetun) | VPN client (OpenVPN or WireGuard) acting as the network gateway and kill switch |
+| [Transmission](https://transmissionbt.com/) | BitTorrent client, running entirely inside the VPN tunnel |
+| [Prowlarr](https://prowlarr.com/) | Indexer/tracker manager, syncs indexers to the apps below |
+| [Sonarr](https://sonarr.tv/) | TV series: monitors, searches and imports episodes |
+| [Radarr](https://radarr.video/) | Movies: monitors, searches and imports releases |
+| [Bazarr](https://www.bazarr.media/) | Subtitles for whatever Sonarr and Radarr import |
 
 🇫🇷 [Version française](README.fr.md)
 
@@ -139,6 +150,68 @@ Copy `.env` and `config/` over by a secure channel (both contain secrets), then
 `git clone` and `docker compose up -d`. Adjust `PUID`/`PGID` and
 `DOWNLOADS_DIR` for the new host. Alternatively, start fresh: the stack builds
 its own `config/` on first run, and you reconfigure the apps by hand.
+
+## FAQ
+
+### Does the kill switch actually hold when the VPN drops?
+
+Yes, because it is not a feature that has to run. Transmission has no network
+interface of its own: it shares gluetun's network namespace. When the tunnel
+goes down, the only route out disappears with it. Verify with
+`docker compose logs gluetun | grep -i "public ip"`.
+
+### Which VPN providers work?
+
+Every provider gluetun supports — around 60, including NordVPN, Mullvad,
+ProtonVPN, Surfshark, Private Internet Access, CyberGhost and any custom
+OpenVPN or WireGuard configuration. Set `VPN_SERVICE_PROVIDER` in `.env`; see
+the [gluetun provider list](https://github.com/qdm12/gluetun-wiki/tree/main/setup/providers).
+
+### Can I use WireGuard?
+
+Yes. Set `VPN_TYPE=wireguard` and fill `WIREGUARD_PRIVATE_KEY` and
+`WIREGUARD_ADDRESSES` in `.env`. It is faster than OpenVPN on most hardware.
+
+### Can I swap Transmission for qBittorrent or Deluge?
+
+Yes. Replace the `transmission` service image with
+`lscr.io/linuxserver/qbittorrent` or `lscr.io/linuxserver/deluge`, keep
+`network_mode: "service:gluetun"`, and update the published port and
+`FIREWALL_INPUT_PORTS` to match the new web UI port.
+
+### Why are my imports copying files instead of hardlinking?
+
+Hardlinks only work inside a single filesystem. Downloads and the media library
+must both live under `DOWNLOADS_DIR`, and every container must see them at the
+same `/data` path — which is why this stack uses one shared mount and no Remote
+Path Mapping. Also enable hardlinks in *Media Management* in Sonarr and Radarr.
+
+### Does it run on a Raspberry Pi, a Synology NAS or a VPS?
+
+Yes. All images are multi-arch (amd64 and arm64). On Linux set `PUID`/`PGID` to
+`id -u` / `id -g`, usually `1000/1000`. `/dev/net/tun` must be available, which
+rules out some restricted container hosts.
+
+### How do I reach the web UIs from another machine?
+
+Keep `BIND_ADDRESS=127.0.0.1` and connect back into your network with
+Tailscale or WireGuard. Exposing these apps directly is unsafe: they were never
+designed to face the Internet.
+
+### Do I need port forwarding?
+
+Only to accept incoming peers. This stack keeps the peer port unpublished, so
+Transmission is outbound-only and upload ratios stay low. If your provider
+supports port forwarding, gluetun can request one — see its wiki.
+
+## Intended use
+
+BitTorrent is a distribution protocol, and plenty of what it distributes is
+free to share: Linux and BSD images (Debian, Ubuntu, Arch, Fedora), the
+[Internet Archive](https://archive.org/) collections, public-domain films,
+Creative Commons music and video, open datasets, game and demoscene archives,
+and Blender Foundation open movies. This stack automates exactly that kind of
+library.
 
 ## Legal
 
